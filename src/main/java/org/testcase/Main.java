@@ -71,80 +71,91 @@ public class Main {
 
         boolean[] checked = new boolean[checkedList.size()];
         int currentRowNumber = checkedList.size() - 1;
-        while (currentRowNumber != 0) {
+        ExecutorService executor = Executors.newFixedThreadPool(checkedList.get(currentRowNumber - 1).size());
+        while (currentRowNumber >= 0) {
 
             List<String> currentRow = checkedList.get(currentRowNumber);
             List<List<String>> group = new ArrayList<>();
             group.add(currentRow);
 
             checked[currentRowNumber] = true;
+
             int refRowPos = 0;
             while (refRowPos < group.size()) {
                 int refElemPos = 0;
                 String elementToCompare = group.get(refRowPos).get(refElemPos);
                 if (elementToCompare != null && !elementToCompare.equals("\"\"")) {
-                    ExecutorService executor = Executors.newFixedThreadPool(numThreads);
-                    for (int i = 1; i < numThreads; i++) {
-                        final int refRowPosInner = refRowPos;
-                        int start = (i - 1) * currentRowNumber / numThreads;
-                        int finish = i * currentRowNumber / numThreads - 1;
-
+                    List<Integer> result = new ArrayList<>();
+                    for (int refElemPosInner = 0; refElemPosInner < group.get(refRowPos).size(); refElemPosInner++) {
+                        final int position = refElemPosInner;
                         executor.execute(() -> {
                             try {
-                                List<Integer> result = findElement(refRowPosInner, refElemPos, elementToCompare,
-                                        group, checkedList, checked,
-                                        start, finish);
-                                synchronized (checked) {
-                                    for (int pos : result) {
-                                        checked[pos] = true;
-                                        group.add(checkedList.get(pos));
+                                for (int j = 0; j < checkedList.size() - 1; j++) {
+
+                                    if (checkedList.get(j).size() > position
+                                            && !checked[j]
+                                            && checkedList.get(j).get(position).equals(elementToCompare)) {
+                                        result.add(j);
                                     }
-
                                 }
-                            } catch (Exception e) {
-                                e.printStackTrace();
-                            }
-                        });
-                    }
-//                    executor.shutdown();
-                }
-                refRowPos++;
 
+                            synchronized (checked) {
+                                for (int pos : result) {
+                                    checked[pos] = true;
+                                    group.add(checkedList.get(pos));
+                                }
+
+                            }
+                        } catch(Exception e){
+                            e.printStackTrace();
+                        }
+                    });
+                }
             }
-            groupedLists.add(group);
-//            if (groupedLists.size() % 100 == 0) {
-//                System.out.println(groupedLists.size());
-//            }
-            if (currentRowNumber % 10000 == 0) {
-                System.out.println(currentRowNumber);
-            }
-            currentRowNumber--;
+//                    executor.shutdown();
+            refRowPos++;
+
         }
+
+        groupedLists.add(group);
+            if (group.size()>1) {
+                System.out.println(groupedLists.lastIndexOf(group));
+            }
+        currentRowNumber--;
+//        if (groupedLists.size() % 100 == 0) {
+//            System.out.println(groupedLists.size());
+//        }
+//        if (currentRowNumber % 10000 == 0) {
+//            System.out.println(currentRowNumber);
+//        }
+    }
 
         return groupedLists;
-    }
-
-
-    private static List<Integer> findElement(int refRowPos, int refElemPos, String elementToCompare,
-                                             List<List<String>> group, List<List<String>> checkedList, boolean[] checked,
-                                             int start, int finish) {
-        List<Integer> result = new ArrayList<>();
-        while (refElemPos < group.get(refRowPos).size()) {
-            if (checkedList.get(start).size() < refElemPos) {
-                break;
-            }
-            for (int j = start; j < finish - 1; j++) {
-
-                if (checkedList.get(j).size() > refElemPos
-                        && !checked[j]
-                        && checkedList.get(j).get(refElemPos).equals(elementToCompare)) {
-                    result.add(j);
-                }
-            }
-
-            refElemPos++;
-        }
-//        System.out.println("Thread finish " + refElemPos*refRowPos);
-        return result;
-    }
 }
+
+}
+
+//
+//    private static List<Integer> findElement(int refRowPos, int refElemPos, String elementToCompare,
+//                                             List<List<String>> group, List<List<String>> checkedList, boolean[] checked,
+//                                             int start, int finish) {
+//        List<Integer> result = new ArrayList<>();
+//        while (refElemPos < group.get(refRowPos).size()) {
+//            if (checkedList.get(start).size() < refElemPos) {
+//                break;
+//            }
+//            for (int j = start; j < finish - 1; j++) {
+//
+//                if (checkedList.get(j).size() > refElemPos
+//                        && !checked[j]
+//                        && checkedList.get(j).get(refElemPos).equals(elementToCompare)) {
+//                    result.add(j);
+//                }
+//            }
+//
+//            refElemPos++;
+//        }
+////        System.out.println("Thread finish " + refElemPos*refRowPos);
+//        return result;
+//    }
+//}
