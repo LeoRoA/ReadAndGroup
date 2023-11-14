@@ -3,11 +3,12 @@ package org.testcase;
 
 import java.io.*;
 import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
@@ -16,12 +17,13 @@ import java.util.zip.GZIPInputStream;
 public class Main {
     public static void main(String[] args) {
         long time = System.currentTimeMillis();
-        String inputFilePath = "src/main/resources/lng-4.txt.gz";
+//        String inputFilePath = "src/main/resources/lng-4.txt.gz";
+        String inputFilePath = "src/main/resources/lng.txt";
         HashSet<String> groups = new HashSet<>();
 
         try (BufferedReader br = new BufferedReader(
-                new InputStreamReader(
-                        new GZIPInputStream(Files.newInputStream(new File(inputFilePath).toPath()))))) {
+                new InputStreamReader(Files.newInputStream(new File(inputFilePath).toPath())))){
+            //                        new GZIPInputStream(Files.newInputStream(new File(inputFilePath).toPath()))))) {
             String line;
             Pattern pattern = Pattern.compile("^(\"?\\w*\"?;)*(\"?\\w*\"?)+$");
             int i = 0;
@@ -45,12 +47,22 @@ public class Main {
             sortedGroups.add(line);
         }
         sortedGroups.sort(Comparator.comparingInt(List::size));
-        int numThreads = 2; // Количество потоков для параллельной обработки
-//        
-        List<List<List<String>>> groupedLists = new ArrayList<>(groupStrings(sortedGroups, numThreads));
-//           
+        Collections.reverse(sortedGroups);
+        int numThreads = sortedGroups.get(0).size(); // Количество потоков для параллельной обработки
+        ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+        List<List<List<String>>> groupedLists = new ArrayList<>();
+        try {
+            groupedLists = groupStrings(sortedGroups, executor);
+            if (executor.awaitTermination(25, TimeUnit.SECONDS)) {
+
+                executor.shutdown();
+            }
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+
         try (BufferedWriter writer = new BufferedWriter(new FileWriter("output.txt"))) {
-//
             int i = 1;
             for (List<List<String>> group : groupedLists) {
                 writer.write("Группа " + i++ + "\n");
@@ -66,72 +78,102 @@ public class Main {
         System.out.printf("Elapsed %,9.3f ms\n", time / 1_000.0);
     }
 
-    private static List<List<List<String>>> groupStrings(List<List<String>> checkedList, int numThreads) {
+    private static List<List<List<String>>> groupStrings(List<List<String>> checkedList, ExecutorService executor) {
         List<List<List<String>>> groupedLists = new ArrayList<>();
 
         boolean[] checked = new boolean[checkedList.size()];
-        int currentRowNumber = checkedList.size() - 1;
-        ExecutorService executor = Executors.newFixedThreadPool(checkedList.get(currentRowNumber - 1).size());
-        while (currentRowNumber >= 0) {
-
-            List<String> currentRow = checkedList.get(currentRowNumber);
+        AtomicInteger currentRowNumber = new AtomicInteger(0);
+        List<Future<?>> futures = new ArrayList<>();
+        while (currentRowNumber.get() < checkedList.size()) {
+            if (currentRowNumber.get() == -1) {
+                System.out.println("bla");
+            }
+            final int curRowNumFinal = currentRowNumber.get();
+            List<String> currentRow = checkedList.get(currentRowNumber.get());
             List<List<String>> group = new ArrayList<>();
-            group.add(currentRow);
 
-            checked[currentRowNumber] = true;
+            if (!checked[curRowNumFinal]) {
+                checked[curRowNumFinal] = true;
+                group.add(currentRow);
+            } else {
+                currentRowNumber.getAndIncrement();
+                continue;
+            }
 
             int refRowPos = 0;
             while (refRowPos < group.size()) {
-                int refElemPos = 0;
-                String elementToCompare = group.get(refRowPos).get(refElemPos);
-                if (elementToCompare != null && !elementToCompare.equals("\"\"")) {
-                    List<Integer> result = new ArrayList<>();
-                    for (int refElemPosInner = 0; refElemPosInner < group.get(refRowPos).size(); refElemPosInner++) {
-                        final int position = refElemPosInner;
-                        executor.execute(() -> {
-                            try {
-                                for (int j = 0; j < checkedList.size() - 1; j++) {
+                List<Integer> result = new ArrayList<>();
 
-                                    if (checkedList.get(j).size() > position
-                                            && !checked[j]
-                                            && checkedList.get(j).get(position).equals(elementToCompare)) {
-                                        result.add(j);
+                for (int refElemPosInner = 0; refElemPosInner < group.get(refRowPos).size(); refElemPosInner++) {
+                    String elementToCompare = group.get(refRowPos).get(refElemPosInner);
+                    if (elementToCompare != null && !elementToCompare.equals("\"\"")) {
+                        final int position = refElemPosInner;
+                        futures.add(executor.submit(() -> {
+
+                            try {
+                                synchronized (checked) {
+                                    for (int j = currentRowNumber.get() + 1; j < checkedList.size() - 1; j++) {
+                                        try{
+                                        if (checkedList.get(j).size() < position+1) {
+
+                                            break;
+                                        }
+                                        if (!checked[j]
+                                                && checkedList.get(j).get(position).equals(elementToCompare)) {
+                                            result.add(j);
+                                        }
+                                        if (!result.isEmpty()) {
+                                            for (int pos : result) {
+                                                checked[pos] = true;
+                                                group.add(checkedList.get(pos));
+                                            }
+                                        }
+                                        }catch (ArrayIndexOutOfBoundsException e) {
+                                            System.out.println(j + " :" + position);
+                                            e.printStackTrace();
+                                        }
+
                                     }
                                 }
 
-                            synchronized (checked) {
-                                for (int pos : result) {
-                                    checked[pos] = true;
-                                    group.add(checkedList.get(pos));
-                                }
 
+
+                        }catch (Exception e) {
+                                e.printStackTrace();
                             }
-                        } catch(Exception e){
-                            e.printStackTrace();
-                        }
-                    });
+                        }));
+                    }
+
+                }
+
+                refRowPos++;
+                futures.clear();
+            }
+            for (Future<?> future : futures) {
+                try {
+                    future.get(); // Ждем завершения всех потоков
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
             }
-//                    executor.shutdown();
-            refRowPos++;
-
-        }
-
-        groupedLists.add(group);
-            if (group.size()>1) {
+            groupedLists.add(group);
+            currentRowNumber.getAndIncrement();
+            if (group.size() > 1) {
                 System.out.println(groupedLists.lastIndexOf(group));
             }
-        currentRowNumber--;
-//        if (groupedLists.size() % 100 == 0) {
-//            System.out.println(groupedLists.size());
-//        }
+
+
+        if (groupedLists.size() % 100000 == 0) {
+            System.out.println(groupedLists.size());
+        }
 //        if (currentRowNumber % 10000 == 0) {
 //            System.out.println(currentRowNumber);
 //        }
-    }
+        }
+//        Collections.reverse(groupedLists);
 
         return groupedLists;
-}
+    }
 
 }
 
