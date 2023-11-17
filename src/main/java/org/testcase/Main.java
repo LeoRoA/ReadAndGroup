@@ -16,9 +16,11 @@ public class Main {
     public static void main(String[] args) {
         long time = System.currentTimeMillis();
         String inputFilePath = "src/main/resources/lng-4.txt.gz";
-        HashSet<String> groups = new HashSet<>();
+//        HashSet<String> groups = new HashSet<>();
         HashMap<String, Integer> repeatedElements = new HashMap<>();
         HashSet<List<String>> inputArray = new HashSet<>();
+        HashSet<Integer> repElemPositions = new HashSet<>();
+        List<List<String>> groups = new ArrayList<>();
 
         try (BufferedReader br = new BufferedReader(
                 new InputStreamReader(
@@ -35,6 +37,9 @@ public class Main {
                         if (repeatedElements.containsKey(element)) {
                             int newValue = repeatedElements.get(element) + 1;
                             repeatedElements.put(element, newValue);
+                            repElemPositions.add(inputArray.size());
+                            groups.addAll(checkGroup(line,element,inputArray));
+                            if (groups)
                         } else {
                             repeatedElements.put(element, 1);
                         }
@@ -48,20 +53,20 @@ public class Main {
         }
         System.out.println(inputArray.size());
 
-//        // Sort the groups by size in descending order
-//        List<List<String>> sortedGroups = new ArrayList<>();
-//        for (String string : groups) {
-////            List<String> line = Arrays.asList(string.split(";"));
-////            for (String element : line) {
-////                if (repeatedElements.containsKey(element)) {
-////                    int newValue = repeatedElements.get(element) + 1;
-////                    repeatedElements.put(element, newValue);
-////                } else {
-////                    repeatedElements.put(element, 1);
-////                }
-////            }
-//            sortedGroups.add(line);
-//        }
+        // Sort the groups by size in descending order
+        List<List<String>> sortedGroups = new ArrayList<>();
+        for (String string : groups) {
+//            List<String> line = Arrays.asList(string.split(";"));
+//            for (String element : line) {
+//                if (repeatedElements.containsKey(element)) {
+//                    int newValue = repeatedElements.get(element) + 1;
+//                    repeatedElements.put(element, newValue);
+//                } else {
+//                    repeatedElements.put(element, 1);
+//                }
+//            }
+            sortedGroups.add(line);
+        }
 
         List<String> repEl = repeatedElements.entrySet()
                 .stream()
@@ -75,12 +80,12 @@ public class Main {
                 .sorted(Comparator.comparingInt(List::size))
                 .collect(Collectors.toList());
         Collections.reverse(sortedInput);
-
-        int numThreads = 16; // Количество потоков для параллельной обработки
-        List<List<List<String>>> groupedLists = new ArrayList<>(groupStrings(sortedInput, numThreads, repEl, time));
-        groupedLists.sort(Comparator.comparingInt(List::size));
+//
+//        int numThreads = 11; // Количество потоков для параллельной обработки
+//        List<List<List<String>>> groupedLists = new ArrayList<>(groupStrings(sortedInput, numThreads, repEl, time, repElemPositions));
+//        groupedLists.sort(Comparator.comparingInt(List::size));
 //           Collections.reverse(groupedLists);
-
+//
         try (BufferedWriter writer = new BufferedWriter(new FileWriter("output.txt"))) {
             int i = 1;
             for (List<List<String>> group : groupedLists) {
@@ -97,91 +102,131 @@ public class Main {
         time = System.currentTimeMillis() - time;
         System.out.printf("Finished %,9.3f ms\n", time / 1_000.0);
     }
+//
+//    private static List<List<List<String>>> groupStrings(List<List<String>> checkedList, int numThreads,
+//                                                         List<String> repEl, long time, HashSet repElemPosition) {
+//        List<List<List<String>>> groupedLists = new ArrayList<>();
+//        ArrayList<Integer> repElemPos = new ArrayList<>(repElemPosition);
+//        boolean[] checked = new boolean[checkedList.size()];
+//        int currentRowNumber = 0;
+////        ExecutorService executorElement = Executors.newFixedThreadPool(1);
+////        ExecutorService executorRows = Executors.newFixedThreadPool(4);
+//        while (currentRowNumber < checkedList.size()) {
+//
+////            final int currentRowNumberFinal = currentRowNumber;
+//            List<String> currentRow = checkedList.get(currentRowNumber);
+//            List<List<String>> group = new ArrayList<>();
+//
+//            if (checked[currentRowNumber]) {
+//                currentRowNumber++;
+//                continue;
+//            }
+//            group.add(currentRow);
+//            group.addAll(checkGroup(currentRow,currentRowNumber,repEl,repElemPos,checkedList,checked));
+//
+//
+//            groupedLists.add(group);
+////            if (group.size() > 1) {
+////                System.out.println(groupedLists.lastIndexOf(group));
+////            }
+//            currentRowNumber++;
+//            if (groupedLists.size() % 100000 == 0) {
+////                long timeFinish = System.currentTimeMillis() - time;
+////                System.out.printf("Finished %,9.3f ms\n", timeFinish / 1_000.0);
+//                System.out.println(groupedLists.size());
+//            }
+////        if (currentRowNumber % 1000 == 0) {
+//////            System.out.println(currentRowNumber);
+////            long timeFinish = System.currentTimeMillis() - time;
+////            System.out.printf("Finished 1k %,9.3f ms\n", timeFinish / 1_000.0);
+////        }
+////            if (groupedLists.size() % 100000 == 0) {
+////                System.out.println("curnum = " + currentRowNumber);
+////                break;
+////            }
+//        }
+//
+//        return groupedLists;
+//    }
+//
+    private static List<List<String>> checkGroup (List<String> currentRow, int currentRowNumber,
+                                                  List<String> repEl, List<Integer> repElemPos,
+                                                  List<List<String>> checkedList, boolean [] checked){
+            List<CompletableFuture<Void>> futures = new ArrayList<>();
+        List<List<String>> group = new ArrayList<>();
+        List<Integer> result = new ArrayList<>();
 
-    private static List<List<List<String>>> groupStrings(List<List<String>> checkedList, int numThreads, List<String> repEl, long time) {
-        List<List<List<String>>> groupedLists = new ArrayList<>();
+            for (int refElemPosInner = 0; refElemPosInner < currentRow.size(); refElemPosInner++) {
+                String elementToCompare = currentRow.get(refElemPosInner);
+                if (elementToCompare != null && !elementToCompare.equals("\"\"") && repEl.contains(elementToCompare)) {
+                    final int position = refElemPosInner;
+                    CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+//                                    synchronized (group) {
 
-        boolean[] checked = new boolean[checkedList.size()];
-        int currentRowNumber = 0;
-        ExecutorService executor = Executors.newFixedThreadPool(numThreads);
-        while (currentRowNumber < checkedList.size()) {
-            final int currentRowNumberFinal = currentRowNumber;
-            List<String> currentRow = checkedList.get(currentRowNumber);
-            List<List<String>> group = new ArrayList<>();
+//                                        for (int thread = 1; thread <= 4; thread++) {
+//                                            int start = (thread - 1) * repElemPosition.size() / numThreads;
+//                                            int finish = thread * repElemPosition.size() / numThreads - 1;
+//                                            CompletableFuture<Void> futureInner = CompletableFuture.runAsync(() -> {
 
-            if (!checked[currentRowNumber]) {
-                group.add(currentRow);
-            }
-            int refRowPos = 0;
-            while (refRowPos < group.size()) {
-                List<CompletableFuture<Void>> futures = new ArrayList<>();
-                List<Integer> result = new ArrayList<>();
-                for (int refElemPosInner = 0; refElemPosInner < group.get(refRowPos).size(); refElemPosInner++) {
-                    String elementToCompare = group.get(refRowPos).get(refElemPosInner);
-                    if (elementToCompare != null && !elementToCompare.equals("\"\"") && repEl.contains(elementToCompare)) {
-                        final int position = refElemPosInner;
-                        CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
 //                        executor.execute(()-> {
-                            try {
-                                synchronized (checked) {
-                                for (int j = currentRowNumberFinal + 1; j < checkedList.size() - 1; j++) {
-                                    if (checkedList.get(j).size() < position + 1) {
+                        try {
+
+                            synchronized (group) {
+                                for (int j = 0; j < repElemPos.size() - 1; j++) {
+                                    if (checkedList.get(repElemPos.get(j)).size() < position + 1) {
                                         break;
                                     }
-                                    if (!checked[j]
-                                            && checkedList.get(j).get(position).equals(elementToCompare)) {
-                                        result.add(j);
+                                    if (repElemPos.get(j) > currentRowNumber
+                                            && !checked[repElemPos.get(j)]
+                                            && checkedList.get(repElemPos.get(j)).get(position).equals(elementToCompare)) {
+                                        result.add(repElemPos.get(j));
+                                        checked[repElemPos.get(j)] = true;
+//                                            if (result.size() == 1) {
+//                                                System.out.println("tro");
+//                                            }
                                     }
                                 }
-                                    for (int pos : result) {
-                                        checked[pos] = true;
-                                        group.add(checkedList.get(pos));
-                                    }
-
+                                for (int pos : result) {
+                                    group.add(checkedList.get(pos));
+                                    group.addAll(checkGroup(checkedList.get(pos), pos, repEl, repElemPos, checkedList, checked));
                                 }
-                            } catch (Exception e) {
-                                e.printStackTrace();
                             }
+//                                    long finishThread = System.currentTimeMillis()-startThread;
+//                                    System.out.printf("Finish %,9.3f ms\n", finishThread / 1_000.0);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
 //                        }));
-                        }, executor);
-                        futures.add(future);
-                    }
+//                                            }, executorRows);
+//                                            futures.add(futureInner);
+//                                        }
+//                                    }
+                    });
+                    futures.add(future);
                 }
-                try {
-
-                    CompletableFuture<Void> allOf = CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
-                    allOf.get();
-                } catch (InterruptedException | ExecutionException e) {
-                    e.printStackTrace();
-                }
-                futures.clear();
-//                    executor.shutdown();
-                refRowPos++;
-
             }
-
-            groupedLists.add(group);
-            if (group.size() > 1) {
-                System.out.println(groupedLists.lastIndexOf(group));
-            }
-            currentRowNumber++;
-            if (groupedLists.size() % 100000 == 0) {
-                long timeFirst = System.currentTimeMillis() - time;
-                System.out.printf("Finished %,9.3f ms\n", timeFirst / 1_000.0);
-                System.out.println(groupedLists.size());
-            }
-//        if (currentRowNumber % 10000 == 0) {
-//            System.out.println(currentRowNumber);
-//        }
-//            if (groupedLists.size() % 10000 == 0) {
-//                break;
+//            try {
+//
+//                CompletableFuture<Void> allOf = CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
+//                allOf.get();
+//            } catch (InterruptedException | ExecutionException e) {
+//                e.printStackTrace();
 //            }
-        }
 
-        return groupedLists;
+//                    executor.shutdown();
+
+//                }
+//                long finishThread = System.currentTimeMillis()-startThread;
+//                System.out.printf("Finish %,9.3f ms\n", finishThread / 1_000.0);
+        return group;
+//    }
     }
 
-}
+
+
+
+
+
 
 //
 //    private static List<Integer> findElement(int refRowPos, int refElemPos, String elementToCompare,
