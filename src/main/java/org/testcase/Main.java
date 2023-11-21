@@ -1,141 +1,149 @@
+
 package org.testcase;
 
 import java.io.*;
 import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.zip.GZIPInputStream;
+
 
 public class Main {
-    public static void main(String[] args) {
-//        if (args.length != 1) {
-//            System.out.println("Usage: java -jar <название проекта>.jar <тестовый-файл.txt>");
-//            System.exit(1);
-//        }
-        long time = System.currentTimeMillis();
-        String inputFilePath = "src/main/resources/lng-4.txt.gz";
-//        Map<Integer, Set<List<String>>> groups = new HashMap<>();
-        HashSet<String> groups = new HashSet<>();
+    static List<Boolean> checked = new ArrayList<>();
+    static List<List<String>> inputArray = new ArrayList<>();
+    static HashMap<String, List<Integer>> repeatedElements = new HashMap<>();
 
+    public static void main(String[] args) {
+        long startTime = System.currentTimeMillis();
+//        String inputFilePath = "src/main/resources/lng.txt";
+
+        if (args.length!=0) {
+            String inputFilePath = args[0];
+            readFileAndGetArray(inputFilePath);
+        } else {
+            System.err.println("Не указано имя файла данных");
+            System.exit(1);
+        }
+
+        List<List<List<String>>> listGroups = new ArrayList<>(groupByElements());
+
+        System.out.println("Count group: " + listGroups.size());
+
+        List<List<List<String>>> sortedGroups = listGroups.stream()
+                .sorted(Comparator.comparingInt(List::size))
+                .collect(Collectors.toList());
+        Collections.reverse(sortedGroups);
+
+        writeInFileByGroup(sortedGroups);
+
+        long finishTime = System.currentTimeMillis() - startTime;
+        System.out.printf("Finished %,9.3f ms\n", finishTime / 1_000.0);
+    }
+
+    private static void readFileAndGetArray(String inputFilePath) {
         try (BufferedReader br = new BufferedReader(
-                new InputStreamReader(
-                        new GZIPInputStream(Files.newInputStream(new File(inputFilePath).toPath()))))) {
-            String line;
+                new InputStreamReader(Files.newInputStream(new File(inputFilePath).toPath())))) {
+            String inputString;
             Pattern pattern = Pattern.compile("^(\"?\\w*\"?;)*(\"?\\w*\"?)+$");
-            int i = 0;
-            while ((line = br.readLine()) != null && !line.isEmpty()) {
-                Matcher matcher = pattern.matcher(line);
+            while ((inputString = br.readLine()) != null && !inputString.isEmpty()) {
+
+                Matcher matcher = pattern.matcher(inputString);
                 if (matcher.matches()) {
-//                    List<String> elements = Arrays.asList(line.split(";"));
-                    groups.add(line);
+                    List<String> line = Arrays.asList(inputString.split(";"));
+                    int countEmpty = 0;
+                    for (String element : line) {
+                        if (element != null && !element.equals("\"\"")) {
+                            if (repeatedElements.containsKey(element)) {
+                                int newCount = repeatedElements.get(element).get(0) + 1;
+                                repeatedElements.get(element).add((inputArray.size()));
+                                repeatedElements.get(element).set(0, newCount);
+                            } else {
+                                repeatedElements.put(element, new ArrayList<>(Arrays.asList(1, inputArray.size())));
+                            }
+                        } else {
+                            countEmpty++;
+                        }
+                    }
+                    if (countEmpty != line.size()) {
+                        inputArray.add(line);
+                        checked.add(false);
+                    }
                 }
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            System.err.println("Ошибка чтения файла: " + e.getMessage());
             System.exit(1);
         }
-        System.out.println(groups.size());
-
-//        // Sort the groups by size in descending order
-        List<List<String>> sortedGroups = new ArrayList<>();
-        for (String string : groups) {
-            List<String> line = Arrays.asList(string.split(";"));
-            sortedGroups.add(line);
-        }
-        sortedGroups.sort(Comparator.comparingInt(List::size));
-////        List<Map.Entry<Integer, Set<List<String>>>> sortedGroups = new ArrayList<>(groups.entrySet());
-////        sortedGroups.sort((e1, e2) -> e2.getKey().compareTo(e1.getKey()));
-////        System.out.println("sg: " + sortedGroups.size());
-//
-//        try (BufferedWriter writer = new BufferedWriter(new FileWriter("output.txt"))) {
-//            int groupCount = 0;
-////            int sizeCount = sortedGroups.get(0).getKey() + 1;
-//            List<List<String>> addedGroup = new ArrayList<>();
-//
-//            // исправить на итератор!!!!!!!!!!
-//            Iterator<List<String>> iterator = sortedGroups.iterator();
-//            int fixSize = sortedGroups.size();
-//            for (int i=fixSize-1; i>0; i--){
-//                groupCount++;
-//                List<String> line = sortedGroups.get(i);
-//                addedGroup.add(line);
-//                writer.write("Группа " + groupCount + "\n");
-//                writer.write(line + "\n");
-//
-//                for (int j = 0; j < line.size() - 1; j++) {
-//                    final int position = j;
-//                    addedGroup.addAll(sortedGroups.stream()
-//                                    .
-//                            .filter(e -> (e.size() - 1 <= position && e.get(position).equals(line.get(position))))
-//                            .collect(Collectors.toList()));
-//
-//                }
-//                writer.write("Группа " + groupCount + "\n");
-//                    for (List<String> addedLine : addedGroup) {
-//                        writer.write(addedLine.toString() + "\n");
-//                    }
-////                writer.write(group + "\n");
-//
-//
-//            }
-//            System.out.println("Количество групп с более чем одним элементом: " + groupCount);
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//            System.exit(1);
-//        }
-
-
-//        for (int i = 0; i < groups.size(); i++) {
-//            Set<List<String>> groupA = groups.get(i);
-//
-//            for (int j = i + 1; j < groups.size(); j++) {
-//                Set<List<String>> groupB = groups.get(j);
-//
-//                if (haveCommonValuesAtSamePositions(groupA, groupB)) {
-//                    groupA.addAll(groupB);
-//                    groups.remove(j);
-//                    j--;
-//                }
-//            }
-//        }
-        List<List<List<String>>> result = groupStrings(data, 1);
-
-
-
-        time = System.currentTimeMillis() - time;
-        System.out.printf("Elapsed %,9.3f ms\n", time / 1_000.0);
     }
-    private static List<List<String>> groupStrings(List<String> addedLine, List<List<String>>checkedList){
 
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter("output.txt"))) {
-            List<List<String>> addedGroup = new ArrayList<>();
+    private static List<List<List<String>>> groupByElements() {
+        List<List<List<String>>> listGroups = new ArrayList<>();
+        int linePosition = 0;
+        for (List<String> line : inputArray) {
+            if (!checked.get(linePosition)) {
+                HashSet<List<String>> group = new HashSet<>();
+                group.addAll(checkLine(line, linePosition, group));
+                if (group.size() > 1) {
+                    listGroups.add(new ArrayList<>(group));
+                }
+            }
+            linePosition++;
+        }
+        return listGroups;
+    }
 
-            while (checkedList.size()!=0){
-                List<String> addedLine = checkedList.get(0);
-                checkedList.remove(0);
-                addedGroup.add(addedLine);
-//                int lineSize = addedGroup.get(i).size();
-                for (int i = 0; i<addedLine.size()-1;i++) {
-                    String exitingString = addedLine.get(i);
-                    for (List<String> checkedLine: checkedList){
-                        if (checkedLine.size()>=i && checkedLine.get(0).equals(exitingString){
-                            addedGroup.add(checkedLine);
+    private static HashSet<List<String>> checkLine(List<String> line, int linePosition, HashSet<List<String>> group) {
+        int position = 0;
+        if (group.contains(line)) {
+            return group;
+        }
+        group.add(line);
+        for (String element : line) {
+            if (element != null && !element.equals("\"\"")) {
+                if (repeatedElements.containsKey(element)) {
+                    List<Integer> detectedLines = repeatedElements.get(element);
+                    for (int j = 1; j < detectedLines.size(); j++) {
+                        if (!inputArray.get(detectedLines.get(j)).equals(line)
+                                && !checked.get(detectedLines.get(j))) {
+                            List<String> checkString = inputArray.get(detectedLines.get(j));
+                            if (checkString.size() < position + 1) {
+                                continue;
+                            }
+                            if (checkString.get(position).equals(element)) {
+                                checked.set(detectedLines.get(j), true);
+                                group.addAll(checkLine(checkString, detectedLines.get(j), group));
+                            }
+                        } else if (inputArray.get(detectedLines.get(j)).equals(line) &&
+                                detectedLines.get(j) != linePosition) {
+                            checked.set(detectedLines.get(j), true);
                         }
                     }
                 }
             }
+            position++;
+        }
+        return group;
+    }
 
-
+    private static void writeInFileByGroup(List<List<List<String>>> listGroups) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter("output.txt"))) {
+            int groupNumber = 1;
+            for (List<List<String>> group : listGroups) {
+                writer.write("Группа " + groupNumber++ + "\n");
+                writer.write(group + "\n");
+            }
+            int linePos = 0;
+            for (List<String> line : inputArray) {
+                if (!checked.get(linePos)) {
+                    writer.write("Группа " + groupNumber++ + "\n");
+                    writer.write(line + "\n");
+                }
+                linePos++;
+            }
         } catch (IOException e) {
-            e.printStackTrace();
+            System.err.println("Ошибка записи файла: " + e.getMessage());
             System.exit(1);
         }
-
-
-
-
     }
 }
