@@ -17,11 +17,12 @@ public class Main {
     public static void main(String[] args) {
         long startTime = System.currentTimeMillis();
 //        String inputFilePath = "src/main/resources/lng.txt";
-        String inputFilePath = args[0];
-        if (inputFilePath != null) {
+
+        if (args.length!=0) {
+            String inputFilePath = args[0];
             readFileAndGetArray(inputFilePath);
         } else {
-            System.out.println("Отсутствует файл");
+            System.err.println("Не указано имя файла данных");
             System.exit(1);
         }
 
@@ -78,7 +79,6 @@ public class Main {
 
     private static List<List<List<String>>> groupByElements() {
         List<List<List<String>>> listGroups = new ArrayList<>();
-        int countGroupedElements = 0;
         int linePosition = 0;
         for (List<String> line : inputArray) {
             if (!checked.get(linePosition)) {
@@ -86,12 +86,10 @@ public class Main {
                 group.addAll(checkLine(line, linePosition, group));
                 if (group.size() > 1) {
                     listGroups.add(new ArrayList<>(group));
-                    countGroupedElements += group.size();
                 }
             }
             linePosition++;
         }
-        System.out.println(countGroupedElements);
         return listGroups;
     }
 
@@ -143,7 +141,6 @@ public class Main {
                 }
                 linePos++;
             }
-            System.out.println(linePos);
         } catch (IOException e) {
             System.err.println("Ошибка записи файла: " + e.getMessage());
             System.exit(1);
