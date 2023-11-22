@@ -1,13 +1,9 @@
-
 package org.testcase;
 
 import java.io.*;
 import java.nio.file.Files;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
 
 public class Main {
     static List<Boolean> checked = new ArrayList<>();
@@ -16,22 +12,23 @@ public class Main {
 
     public static void main(String[] args) {
         long startTime = System.currentTimeMillis();
+//        String inputFilePath = "src/main/resources/lng-big.csv";
 //        String inputFilePath = "src/main/resources/lng.txt";
 
         if (args.length!=0) {
             String inputFilePath = args[0];
-            readFileAndGetArray(inputFilePath);
+        readFileAndGetArray(inputFilePath);
         } else {
             System.err.println("Не указано имя файла данных");
             System.exit(1);
         }
 
-        List<List<List<String>>> listGroups = new ArrayList<>(groupByElements());
+        List<HashSet<List<String>>> listGroups = new ArrayList<>(groupByElements());
 
         System.out.println("Count group: " + listGroups.size());
 
-        List<List<List<String>>> sortedGroups = listGroups.stream()
-                .sorted(Comparator.comparingInt(List::size))
+        List<HashSet<List<String>>> sortedGroups = listGroups.stream()
+                .sorted(Comparator.comparingInt(HashSet::size))
                 .collect(Collectors.toList());
         Collections.reverse(sortedGroups);
 
@@ -42,95 +39,98 @@ public class Main {
     }
 
     private static void readFileAndGetArray(String inputFilePath) {
-        try (BufferedReader br = new BufferedReader(
-                new InputStreamReader(Files.newInputStream(new File(inputFilePath).toPath())))) {
+        try (/*CSVReader csvReader = new CSVReader(*/
+                BufferedReader br = new BufferedReader(new InputStreamReader(Files.newInputStream(new File(inputFilePath).toPath())))) {
             String inputString;
-            Pattern pattern = Pattern.compile("^(\"?\\w*\"?;)*(\"?\\w*\"?)+$");
             while ((inputString = br.readLine()) != null && !inputString.isEmpty()) {
 
-                Matcher matcher = pattern.matcher(inputString);
-                if (matcher.matches()) {
-                    List<String> line = Arrays.asList(inputString.split(";"));
-                    int countEmpty = 0;
-                    for (String element : line) {
-                        if (element != null && !element.equals("\"\"")) {
-                            if (repeatedElements.containsKey(element)) {
-                                int newCount = repeatedElements.get(element).get(0) + 1;
-                                repeatedElements.get(element).add((inputArray.size()));
-                                repeatedElements.get(element).set(0, newCount);
-                            } else {
-                                repeatedElements.put(element, new ArrayList<>(Arrays.asList(1, inputArray.size())));
-                            }
+                List<String> line = Arrays.asList(inputString.split(";"));
+                int countEmpty = 0;
+                for (String element : line) {
+                    if (!element.isEmpty() && !element.equals("\"\"")) {
+                        if (repeatedElements.containsKey(element)) {
+                            int newCount = repeatedElements.get(element).get(0) + 1;
+                            repeatedElements.get(element).add((inputArray.size()));
+                            repeatedElements.get(element).set(0, newCount);
                         } else {
-                            countEmpty++;
+                            repeatedElements.put(element, new ArrayList<>(Arrays.asList(1, inputArray.size())));
                         }
-                    }
-                    if (countEmpty != line.size()) {
-                        inputArray.add(line);
-                        checked.add(false);
+                    } else {
+                        countEmpty++;
                     }
                 }
+                if (countEmpty != line.size()) {
+                    inputArray.add(line);
+                    checked.add(false);
+                }
             }
+            System.out.println(inputArray.size());
         } catch (IOException e) {
             System.err.println("Ошибка чтения файла: " + e.getMessage());
             System.exit(1);
         }
     }
 
-    private static List<List<List<String>>> groupByElements() {
-        List<List<List<String>>> listGroups = new ArrayList<>();
+    private static List<HashSet<List<String>>> groupByElements() {
+        List<HashSet<List<String>>> listGroups = new ArrayList<>();
         int linePosition = 0;
         for (List<String> line : inputArray) {
             if (!checked.get(linePosition)) {
-                HashSet<List<String>> group = new HashSet<>();
-                group.addAll(checkLine(line, linePosition, group));
+                List<List<String>> group = new ArrayList<>(checkLine(line, linePosition));
                 if (group.size() > 1) {
-                    listGroups.add(new ArrayList<>(group));
+                    listGroups.add(new HashSet<>(group));
                 }
             }
             linePosition++;
         }
+
         return listGroups;
     }
 
-    private static HashSet<List<String>> checkLine(List<String> line, int linePosition, HashSet<List<String>> group) {
-        int position = 0;
-        if (group.contains(line)) {
-            return group;
-        }
-        group.add(line);
-        for (String element : line) {
-            if (element != null && !element.equals("\"\"")) {
-                if (repeatedElements.containsKey(element)) {
-                    List<Integer> detectedLines = repeatedElements.get(element);
-                    for (int j = 1; j < detectedLines.size(); j++) {
-                        if (!inputArray.get(detectedLines.get(j)).equals(line)
-                                && !checked.get(detectedLines.get(j))) {
-                            List<String> checkString = inputArray.get(detectedLines.get(j));
-                            if (checkString.size() < position + 1) {
-                                continue;
+    private static List<List<String>> checkLine(List<String> line, int linePosition) {
+            List<List<String>> group = new ArrayList<>();
+            int countLines = 0;
+            group.add(line);
+            checked.set(linePosition, true);
+            while (countLines < group.size()) {
+                line = group.get(countLines);
+                int position = 0;
+                for (String element : line) {
+                    if (!element.isEmpty() && !element.equals("\"\"")) {
+                        if (repeatedElements.containsKey(element) && repeatedElements.get(element).get(0) != 1) {
+                            List<Integer> detectedLines = repeatedElements.get(element);
+                            for (int j = 1; j < detectedLines.size(); j++) {
+                                int numberCheckedLine = detectedLines.get(j);
+                                if (!checked.get(numberCheckedLine)
+                                && !inputArray.get(numberCheckedLine).equals(line)) {
+                                    List<String> checkString = inputArray.get(numberCheckedLine);
+                                    if (checkString.size() - 1 < position) {
+                                        continue;
+                                    }
+                                    if (checkString.get(position).equals(element)) {
+                                        checked.set(numberCheckedLine, true);
+                                        group.add(checkString);
+                                    }
+                                } else {
+                                    checked.set(detectedLines.get(j), true);
+                                }
                             }
-                            if (checkString.get(position).equals(element)) {
-                                checked.set(detectedLines.get(j), true);
-                                group.addAll(checkLine(checkString, detectedLines.get(j), group));
-                            }
-                        } else if (inputArray.get(detectedLines.get(j)).equals(line) &&
-                                detectedLines.get(j) != linePosition) {
-                            checked.set(detectedLines.get(j), true);
                         }
                     }
+                    position++;
+
                 }
+                countLines++;
             }
-            position++;
-        }
         return group;
     }
 
-    private static void writeInFileByGroup(List<List<List<String>>> listGroups) {
+    private static void writeInFileByGroup(List<HashSet<List<String>>> listGroups) {
         try (BufferedWriter writer = new BufferedWriter(new FileWriter("output.txt"))) {
             int groupNumber = 1;
-            for (List<List<String>> group : listGroups) {
+            for (HashSet<List<String>> group : listGroups) {
                 writer.write("Группа " + groupNumber++ + "\n");
+                writer.write(group.size() + "\n");
                 writer.write(group + "\n");
             }
             int linePos = 0;
